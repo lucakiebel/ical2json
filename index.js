@@ -49,6 +49,7 @@ async function handleRequest(request) {
   }
 }
 
+// from https://github.com/adrianlee44/ical2json
 
 // Make sure lines are splited correctly
 // http://stackoverflow.com/questions/1155678/javascript-string-newline-character
