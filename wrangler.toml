@@ -1,0 +1,8 @@
+name = "ical2json"
+type = "javascript"
+
+account_id = "369a7aaae03ed23c0b15c550157b5117"
+workers_dev = true
+route = ""
+zone_id = ""
+compatibility_date = "2022-03-30"
