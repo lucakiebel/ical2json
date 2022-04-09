@@ -24,24 +24,35 @@ async function gatherResponse(response) {
 }
 
 async function getSourceAndConvert(url, convertFn) {
-  const data = await gatherResponse(url);
+  const response = await fetch(url);
+  const data = await gatherResponse(response);
   return convertFn(data);
 }
 
 
 /**
- * Respond with hello worker text
+ * Respond with JSON or ical data
  * @param {Request} request
  */
 async function handleRequest(request) {
+
   console.log("in handleRequest");
   const url = new URL(request.url);
+
+  if (url.pathname === '/favicon.ico') {
+    return fetch("https://luca-kiebel.de/favicons/favicon.ico", request);
+  }
+
   const ical = url.searchParams.get('ical');
   const json = url.searchParams.get('json');
 
+  console.log(ical, json);
+
   if(ical || json) {
     const convertFn = (ical) ? convert : revert;
+    console.log("convertFn: " + convertFn);
     const source = await getSourceAndConvert(ical || json, convertFn);
+    console.log("source: ", source);
     const response = new Response(source, {
       headers: {
         'content-type': (ical) ? 'application/json' : 'text/calendar',
@@ -119,7 +130,7 @@ function convert(source) {
             }
         }
     }
-    return output;
+    return JSON.stringify(output);
 }
 
 
