@@ -15,11 +15,18 @@ async function gatherResponse(response) {
   const contentType = headers.get('content-type') || '';
   if (contentType.includes('text/calendar')) {
     return response.text();
-  } else {
-    throw new Error('Not a calendar resource. Content-Type: ' + contentType);
+  } else if (contentType.includes('application/json')) {
+    return response.json();
+  }
+  else {
+    throw new Error('Not a calendar/json resource. Content-Type: ' + contentType);
   }
 }
 
+async function getSourceAndConvert(url, convertFn) {
+  const data = await gatherResponse(url);
+  return convertFn(data);
+}
 
 
 /**
@@ -30,21 +37,23 @@ async function handleRequest(request) {
   console.log("in handleRequest");
   const url = new URL(request.url);
   const ical = url.searchParams.get('ical');
-  console.log(ical);
-  const response = await fetch(ical);
-  console.log("ICAL response",response);
-  try {
-    const text = await gatherResponse(response);
-    console.log("ICAL text",text);
-    const converted = convert(text);
-    console.log(converted)
-    return new Response(JSON.stringify(converted), {
-      headers: { 'content-type': 'application/json', ...corsHeaders},
+  const json = url.searchParams.get('json');
+
+  if(ical || json) {
+    const convertFn = (ical) ? convert : revert;
+    const source = await getSourceAndConvert(ical || json, convertFn);
+    const response = new Response(source, {
+      headers: {
+        'content-type': (ical) ? 'application/json' : 'text/calendar',
+        ...corsHeaders
+      },
+      status: 200,
     });
-  } catch (error) {
-    return new Response(JSON.stringify({"message":"Error: "+error.message}), {
+    return response;
+  } else {
+    return new Response('', {
       status: 400,
-      headers: { 'content-type': 'application/json', ...corsHeaders },
+      headers: corsHeaders,
     });
   }
 }
@@ -111,4 +120,39 @@ function convert(source) {
         }
     }
     return output;
+}
+
+
+/**
+* Take JSON, revert back to ical
+*/
+function revert(object) {
+  const lines = [];
+
+  for (const key in object) {
+    const value = object[key];
+    if (Array.isArray(value)) {
+      if (key === 'RDATE') {
+        (value).forEach((item) => {
+          lines.push(key + ':' + item);
+        });
+      } else {
+        (value).forEach((item) => {
+          lines.push('BEGIN:' + key);
+          lines.push(revert(item));
+          lines.push('END:' + key);
+        });
+      }
+    } else {
+      let fullLine = key + ':' + value;
+      do {
+        // According to ical spec, lines of text should be no longer
+        // than 75 octets
+        lines.push(fullLine.substr(0, 75));
+        fullLine = SPACE + fullLine.substr(75);
+      } while (fullLine.length > 1);
+    }
+  }
+
+  return lines.join('\n');
 }
